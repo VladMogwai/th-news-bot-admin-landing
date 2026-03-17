@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
+const { fetchSource, fetchAllSources } = require('../scraper');
 
 const prisma = new PrismaClient();
 
@@ -117,17 +118,16 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// POST /api/sources/:id/fetch  (trigger signal — actual scrape is done by the bot)
+// POST /api/sources/:id/fetch
 router.post('/:id/fetch', async (req, res) => {
   try {
-    await prisma.source.update({
-      where: { id: req.params.id },
-      data: { lastScrapedAt: new Date() },
-    });
-    res.json({ ok: true });
+    const source = await prisma.source.findUnique({ where: { id: req.params.id } });
+    if (!source) return res.status(404).json({ error: 'Source not found' });
+    const added = await fetchSource(source);
+    res.json({ ok: true, added });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: err.message });
   }
 });
 
