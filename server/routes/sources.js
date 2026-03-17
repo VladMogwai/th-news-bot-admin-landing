@@ -83,6 +83,20 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// POST /api/sources/:id/fetch  (trigger signal — actual scrape is done by the bot)
+router.post('/:id/fetch', async (req, res) => {
+  try {
+    await prisma.source.update({
+      where: { id: req.params.id },
+      data: { lastScrapedAt: new Date() },
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET /api/sources/:id/posts
 router.get('/:id/posts', async (req, res) => {
   try {

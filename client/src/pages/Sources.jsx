@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../api/axios';
 import Spinner from '../components/Spinner';
 
@@ -142,12 +142,50 @@ export default function Sources() {
   const toggleSelect = (src) =>
     setSelected((prev) => (prev?.id === src.id ? null : src));
 
+  // ── Resize panel ────────────────────────────────────────────────────────────
+  const [panelWidth, setPanelWidth] = useState(480);
+  const isResizing = useRef(false);
+  const startX = useRef(0);
+  const startWidth = useRef(0);
+
+  const onResizerMouseDown = (e) => {
+    isResizing.current = true;
+    startX.current = e.clientX;
+    startWidth.current = panelWidth;
+    e.preventDefault();
+  };
+
+  useEffect(() => {
+    const onMouseMove = (e) => {
+      if (!isResizing.current) return;
+      const diff = startX.current - e.clientX;
+      setPanelWidth(Math.max(280, Math.min(900, startWidth.current + diff)));
+    };
+    const onMouseUp = () => { isResizing.current = false; };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, []);
+
+  // ── Fetch posts for a source ─────────────────────────────────────────────────
+  const handleFetch = async (id) => {
+    await api.post(`/sources/${id}/fetch`).catch(() => {});
+    await loadSources();
+    if (selected?.id === id) {
+      const { data } = await api.get(`/sources/${id}/posts`);
+      setPosts(data);
+    }
+  };
+
   if (loading) return <Spinner />;
 
   return (
-    <div className="flex gap-4 h-full min-h-0">
+    <div className="flex h-full min-h-0">
       {/* ── Left: table ──────────────────────────────────────────────────── */}
-      <div className="flex-1 min-w-0 flex flex-col gap-3">
+      <div className="flex-1 min-w-0 flex flex-col gap-3 mr-0">
         {/* Top toolbar */}
         <div className="flex items-center gap-2 flex-wrap">
           {countdown && (
@@ -254,6 +292,12 @@ export default function Sources() {
                     onClick={(e) => e.stopPropagation()}
                   >
                     <button
+                      onClick={() => handleFetch(src.id)}
+                      className="text-blue-400 hover:text-blue-300 text-xs transition-colors"
+                    >
+                      Fetch
+                    </button>
+                    <button
                       onClick={() => handleClear(src.id)}
                       className="text-gray-400 hover:text-white text-xs transition-colors"
                     >
@@ -280,9 +324,21 @@ export default function Sources() {
         </div>
       </div>
 
+      {/* ── Resizer ──────────────────────────────────────────────────────── */}
+      {selected && (
+        <div
+          onMouseDown={onResizerMouseDown}
+          className="w-2 mx-1 flex-shrink-0 flex items-center justify-center cursor-col-resize group"
+        >
+          <div className="w-1 h-16 rounded-full bg-gray-600 group-hover:bg-blue-500 transition-colors" />
+        </div>
+      )}
+
       {/* ── Right: pending posts panel ───────────────────────────────────── */}
       {selected && (
-        <div className="w-80 flex-shrink-0 bg-[#161b22] border border-gray-800 rounded-lg flex flex-col">
+        <div
+          style={{ width: panelWidth, minWidth: 280 }}
+          className="flex-shrink-0 bg-[#161b22] border border-gray-800 rounded-lg flex flex-col">
           <div className="p-4 border-b border-gray-800">
             <h3 className="text-white font-semibold truncate">{selected.name}</h3>
             <p className="text-gray-500 text-xs mt-0.5">{posts.length} pending</p>
