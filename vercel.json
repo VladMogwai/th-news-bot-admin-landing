@@ -3,6 +3,9 @@
   "outputDirectory": "client/dist",
   "rewrites": [
     { "source": "/api/cron", "destination": "/api/cron" },
+    { "source": "/api/parser/start", "destination": "/api/parser/start" },
+    { "source": "/api/parser/status/:jobId", "destination": "/api/parser/status" },
+    { "source": "/api/parser/web", "destination": "/api/parser/web" },
     { "source": "/api/:path*", "destination": "/api/index" }
   ],
   "crons": [
