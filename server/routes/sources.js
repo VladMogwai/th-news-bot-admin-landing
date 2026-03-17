@@ -19,11 +19,25 @@ async function sendToTelegram(post) {
   const base = `https://api.telegram.org/bot${token}`;
 
   if (imgs.length > 0) {
-    await fetch(`${base}/sendPhoto`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, photo: imgs[0], caption: post.content || '' }),
-    });
+    try {
+      // Download image first, then upload as file (CDN URLs need re-upload)
+      const imgRes = await fetch(imgs[0]);
+      const buffer = Buffer.from(await imgRes.arrayBuffer());
+      const formData = new FormData();
+      formData.append('chat_id', chatId);
+      formData.append('caption', post.content || '');
+      formData.append('photo', new Blob([buffer], { type: 'image/jpeg' }), 'photo.jpg');
+      const res = await fetch(`${base}/sendPhoto`, { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.description);
+    } catch {
+      // Fallback: send text only if image upload fails
+      await fetch(`${base}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: post.content || '' }),
+      });
+    }
   } else {
     await fetch(`${base}/sendMessage`, {
       method: 'POST',
