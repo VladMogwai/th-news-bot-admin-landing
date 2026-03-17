@@ -6,6 +6,7 @@ const { fetchSource, fetchAllSources } = require('../scraper');
 const prisma = new PrismaClient();
 
 const axios = require('axios');
+const FormData = require('form-data');
 
 async function fetchAsBuffer(url) {
   try {
@@ -37,11 +38,7 @@ async function sendToTelegram(post) {
   const fullText = (post.content || '').slice(0, 4096);
 
   if (imgs.length === 0) {
-    await fetch(`${base}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text: fullText }),
-    });
+    await axios.post(`${base}/sendMessage`, { chat_id: chatId, text: fullText });
     return;
   }
 
@@ -49,48 +46,36 @@ async function sendToTelegram(post) {
     if (imgs.length === 1) {
       const buf = await fetchAsBuffer(imgs[0]);
       if (buf) {
-        const formData = new FormData();
-        formData.append('chat_id', chatId);
-        formData.append('caption', caption);
-        formData.append('photo', new Blob([buf], { type: 'image/jpeg' }), 'photo.jpg');
-        await fetch(`${base}/sendPhoto`, { method: 'POST', body: formData });
+        const form = new FormData();
+        form.append('chat_id', chatId);
+        form.append('caption', caption);
+        form.append('photo', buf, { filename: 'photo.jpg', contentType: 'image/jpeg' });
+        await axios.post(`${base}/sendPhoto`, form, { headers: form.getHeaders() });
       } else {
-        await fetch(`${base}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: chatId, text: fullText }),
-        });
+        await axios.post(`${base}/sendMessage`, { chat_id: chatId, text: fullText });
       }
     } else {
       const buffers = await Promise.all(imgs.map(fetchAsBuffer));
       const valid = buffers.filter(Boolean);
       if (valid.length === 0) {
-        await fetch(`${base}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: chatId, text: fullText }),
-        });
+        await axios.post(`${base}/sendMessage`, { chat_id: chatId, text: fullText });
         return;
       }
-      const formData = new FormData();
-      formData.append('chat_id', chatId);
+      const form = new FormData();
+      form.append('chat_id', chatId);
       const media = valid.map((buf, i) => ({
         type: 'photo',
         media: `attach://photo_${i}`,
         ...(i === 0 ? { caption } : {}),
       }));
-      formData.append('media', JSON.stringify(media));
+      form.append('media', JSON.stringify(media));
       valid.forEach((buf, i) => {
-        formData.append(`photo_${i}`, new Blob([buf], { type: 'image/jpeg' }), `photo_${i}.jpg`);
+        form.append(`photo_${i}`, buf, { filename: `photo_${i}.jpg`, contentType: 'image/jpeg' });
       });
-      await fetch(`${base}/sendMediaGroup`, { method: 'POST', body: formData });
+      await axios.post(`${base}/sendMediaGroup`, form, { headers: form.getHeaders() });
     }
   } catch {
-    await fetch(`${base}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text: fullText }),
-    });
+    await axios.post(`${base}/sendMessage`, { chat_id: chatId, text: fullText });
   }
 }
 
