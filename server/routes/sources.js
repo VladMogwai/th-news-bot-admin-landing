@@ -5,6 +5,21 @@ const { fetchSource, fetchAllSources } = require('../scraper');
 
 const prisma = new PrismaClient();
 
+const axios = require('axios');
+
+async function fetchAsBuffer(url) {
+  try {
+    const res = await axios.get(url, {
+      responseType: 'arraybuffer',
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://t.me/' },
+      timeout: 10000,
+    });
+    return Buffer.from(res.data);
+  } catch {
+    return null;
+  }
+}
+
 async function sendToTelegram(post) {
   const settings = await prisma.botSettings.findMany();
   const cfg = Object.fromEntries(settings.map(r => [r.key, r.value]));
@@ -12,37 +27,69 @@ async function sendToTelegram(post) {
   const chatId = cfg.target_channel_id;
   if (!token || !chatId) return;
 
-  const imgs = Array.isArray(post.mediaUrls)
+  const imgs = (Array.isArray(post.mediaUrls)
     ? post.mediaUrls
-    : (typeof post.mediaUrls === 'string' ? JSON.parse(post.mediaUrls) : []);
+    : (typeof post.mediaUrls === 'string' ? JSON.parse(post.mediaUrls) : [])
+  ).filter(Boolean).slice(0, 10);
 
   const base = `https://api.telegram.org/bot${token}`;
+  const caption = (post.content || '').slice(0, 1024);
+  const fullText = (post.content || '').slice(0, 4096);
 
-  if (imgs.length > 0) {
-    try {
-      // Download image first, then upload as file (CDN URLs need re-upload)
-      const imgRes = await fetch(imgs[0]);
-      const buffer = Buffer.from(await imgRes.arrayBuffer());
-      const formData = new FormData();
-      formData.append('chat_id', chatId);
-      formData.append('caption', post.content || '');
-      formData.append('photo', new Blob([buffer], { type: 'image/jpeg' }), 'photo.jpg');
-      const res = await fetch(`${base}/sendPhoto`, { method: 'POST', body: formData });
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.description);
-    } catch {
-      // Fallback: send text only if image upload fails
-      await fetch(`${base}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: post.content || '' }),
-      });
-    }
-  } else {
+  if (imgs.length === 0) {
     await fetch(`${base}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text: post.content || '' }),
+      body: JSON.stringify({ chat_id: chatId, text: fullText }),
+    });
+    return;
+  }
+
+  try {
+    if (imgs.length === 1) {
+      const buf = await fetchAsBuffer(imgs[0]);
+      if (buf) {
+        const formData = new FormData();
+        formData.append('chat_id', chatId);
+        formData.append('caption', caption);
+        formData.append('photo', new Blob([buf], { type: 'image/jpeg' }), 'photo.jpg');
+        await fetch(`${base}/sendPhoto`, { method: 'POST', body: formData });
+      } else {
+        await fetch(`${base}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, text: fullText }),
+        });
+      }
+    } else {
+      const buffers = await Promise.all(imgs.map(fetchAsBuffer));
+      const valid = buffers.filter(Boolean);
+      if (valid.length === 0) {
+        await fetch(`${base}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, text: fullText }),
+        });
+        return;
+      }
+      const formData = new FormData();
+      formData.append('chat_id', chatId);
+      const media = valid.map((buf, i) => ({
+        type: 'photo',
+        media: `attach://photo_${i}`,
+        ...(i === 0 ? { caption } : {}),
+      }));
+      formData.append('media', JSON.stringify(media));
+      valid.forEach((buf, i) => {
+        formData.append(`photo_${i}`, new Blob([buf], { type: 'image/jpeg' }), `photo_${i}.jpg`);
+      });
+      await fetch(`${base}/sendMediaGroup`, { method: 'POST', body: formData });
+    }
+  } catch {
+    await fetch(`${base}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: fullText }),
     });
   }
 }
