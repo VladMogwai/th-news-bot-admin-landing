@@ -382,26 +382,36 @@ export default function Sources() {
 
 function PostCard({ post, onSend, onDelete }) {
   const imgs = Array.isArray(post.mediaUrls) ? post.mediaUrls : [];
+  const time = post.scrapedAt
+    ? new Date(post.scrapedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : '';
 
   return (
-    <div className="bg-[#0d1117] border border-gray-800 rounded p-3">
+    <div className="rounded-2xl overflow-hidden bg-[#1e2c3a] mb-1">
+      {/* Image */}
       {imgs[0] && (
         <img
           src={imgs[0]}
           alt=""
-          className="w-full h-24 object-cover rounded mb-2"
+          className="w-full object-cover block"
           onError={(e) => { e.currentTarget.style.display = 'none'; }}
         />
       )}
-      <p className="text-gray-300 text-xs leading-relaxed mb-2 line-clamp-3">
-        {post.content || '(no text)'}
-      </p>
-      <p className="text-gray-600 text-xs mb-3">
-        {post.scrapedAt ? new Date(post.scrapedAt).toLocaleString() : ''}
-      </p>
-      <div className="flex gap-2">
-        <button onClick={onSend}   className="btn-primary  flex-1 text-xs py-1">Send</button>
-        <button onClick={onDelete} className="btn-ghost    flex-1 text-xs py-1 text-red-400 hover:text-red-300">Delete</button>
+
+      {/* Text + time */}
+      <div className="px-3 pt-2 pb-1">
+        <p className="text-[#e8e8e8] text-sm leading-relaxed whitespace-pre-wrap break-words">
+          {post.content || ''}
+        </p>
+        <div className="flex justify-end mt-1">
+          <span className="text-[#7a9bb5] text-xs">{time}</span>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-1 px-2 pb-2 pt-1">
+        <button onClick={onSend}   className="btn-primary flex-1 text-xs py-1.5">Send</button>
+        <button onClick={onDelete} className="flex-1 text-xs py-1.5 rounded bg-[#2a3a4a] text-red-400 hover:text-red-300 transition-colors">Delete</button>
       </div>
     </div>
   );
