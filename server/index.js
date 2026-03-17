@@ -31,8 +31,8 @@ app.use('/api/stats', authenticate, statsRoutes);
 app.use('/api/sources', authenticate, sourcesRoutes);
 app.use('/api/settings', authenticate, settingsRoutes);
 
-// Serve React build in production
-if (process.env.NODE_ENV === 'production') {
+// Serve React build in production (non-Vercel)
+if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
   const clientDist = path.join(__dirname, '../client/dist');
   app.use(express.static(clientDist));
   app.get('*', (req, res) => {
@@ -40,6 +40,10 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
-});
+module.exports = app;
+
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
+  });
+}
