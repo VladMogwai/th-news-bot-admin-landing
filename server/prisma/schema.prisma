@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Existing bot tables (read-only mapping — DO NOT ALTER) ──────────────────
+
+model BotSettings {
+  key   String  @id
+  value String?
+
+  @@map("bot_settings")
+}
+
+model Source {
+  id            String      @id @default(uuid()) @db.Uuid
+  name          String
+  url           String
+  type          String
+  status        String      @default("active")
+  config        Json        @default("{}")
+  createdAt     DateTime?   @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastScrapedAt DateTime?   @map("last_scraped_at") @db.Timestamptz(6)
+  failCount     Int?        @default(0) @map("fail_count")
+  postsPerDay   Decimal?    @default(0) @map("posts_per_day") @db.Decimal
+
+  posts      Post[]
+  scrapeLogs ScrapeLog[]
+
+  @@map("sources")
+}
+
+model Post {
+  id          String    @id @default(uuid()) @db.Uuid
+  sourceId    String?   @map("source_id") @db.Uuid
+  externalId  String?   @map("external_id")
+  content     String?
+  mediaUrls   Json      @default("[]") @map("media_urls")
+  contentHash String?   @unique @map("content_hash")
+  scrapedAt   DateTime? @default(now()) @map("scraped_at") @db.Timestamptz(6)
+  sentAt      DateTime? @map("sent_at") @db.Timestamptz(6)
+  isDuplicate Boolean?  @default(false) @map("is_duplicate")
+  isSent      Boolean?  @default(false) @map("is_sent")
+  ignored     Boolean?  @default(false)
+
+  source Source? @relation(fields: [sourceId], references: [id])
+
+  @@map("posts")
+}
+
+model ScrapeLog {
+  id        String    @id @default(uuid()) @db.Uuid
+  sourceId  String?   @map("source_id") @db.Uuid
+  status    String?
+  message   String?
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  source Source? @relation(fields: [sourceId], references: [id])
+
+  @@map("scrape_logs")
+}
+
+// ─── New table (created via migration) ───────────────────────────────────────
+
+model Admin {
+  id           String   @id @default(uuid()) @db.Uuid
+  username     String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("admins")
+}

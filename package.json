@@ -1,0 +1,27 @@
+{
+  "name": "th-news-bot-admin-landing",
+  "version": "1.0.0",
+  "private": true,
+  "prisma": {
+    "schema": "server/prisma/schema.prisma"
+  },
+  "scripts": {
+    "build": "prisma generate && npm install --prefix client && npm run build --prefix client",
+    "start": "node server/index.js",
+    "dev:server": "node --watch server/index.js",
+    "dev:client": "npm run dev --prefix client",
+    "create-admin": "node server/createAdmin.js",
+    "db:migrate": "prisma migrate deploy",
+    "postinstall": "prisma generate || true"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.10.0",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.1",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "prisma": "^5.10.0"
+  }
+}
