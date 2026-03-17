@@ -4,6 +4,34 @@ const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
+async function sendToTelegram(post) {
+  const settings = await prisma.botSettings.findMany();
+  const cfg = Object.fromEntries(settings.map(r => [r.key, r.value]));
+  const token = cfg.bot_token;
+  const chatId = cfg.target_channel_id;
+  if (!token || !chatId) return;
+
+  const imgs = Array.isArray(post.mediaUrls)
+    ? post.mediaUrls
+    : (typeof post.mediaUrls === 'string' ? JSON.parse(post.mediaUrls) : []);
+
+  const base = `https://api.telegram.org/bot${token}`;
+
+  if (imgs.length > 0) {
+    await fetch(`${base}/sendPhoto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, photo: imgs[0], caption: post.content || '' }),
+    });
+  } else {
+    await fetch(`${base}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: post.content || '' }),
+    });
+  }
+}
+
 // POST /api/sources/bulk  ← must be defined BEFORE /:id routes
 router.post('/bulk', async (req, res) => {
   const { action, sourceIds } = req.body;
@@ -23,6 +51,12 @@ router.post('/bulk', async (req, res) => {
         data: { ignored: true },
       });
     } else if (action === 'send') {
+      const pending = await prisma.post.findMany({
+        where: { sourceId: { in: sourceIds }, isSent: false, ignored: false },
+      });
+      for (const post of pending) {
+        await sendToTelegram(post);
+      }
       await prisma.post.updateMany({
         where: { sourceId: { in: sourceIds }, isSent: false, ignored: false },
         data: { isSent: true, sentAt: new Date() },
@@ -114,11 +148,16 @@ router.get('/:id/posts', async (req, res) => {
 // POST /api/sources/:id/posts/:postId/send
 router.post('/:id/posts/:postId/send', async (req, res) => {
   try {
-    const post = await prisma.post.update({
+    const post = await prisma.post.findUnique({ where: { id: req.params.postId } });
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+
+    await sendToTelegram(post);
+
+    const updated = await prisma.post.update({
       where: { id: req.params.postId },
       data: { isSent: true, sentAt: new Date() },
     });
-    res.json(post);
+    res.json(updated);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });

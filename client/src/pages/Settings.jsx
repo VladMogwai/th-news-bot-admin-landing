@@ -3,8 +3,9 @@ import api from '../api/axios';
 import Spinner from '../components/Spinner';
 
 const DEFAULTS = {
-  target_channel_id: '',
-  posting_interval:  '300',
+  bot_token:          '',
+  target_channel_id:  '',
+  posting_interval:   '300',
   max_posts_per_hour: '10',
   dedup_window_days:  '7',
   ad_filter_enabled:  'false',
@@ -52,6 +53,15 @@ export default function Settings() {
 
       {/* General */}
       <Section title="General">
+        <Field label="Bot Token">
+          <input
+            type="password"
+            value={form.bot_token}
+            onChange={set('bot_token')}
+            placeholder="123456789:AAF..."
+            className="input"
+          />
+        </Field>
         <Field label="Target Channel ID">
           <input
             type="text"
