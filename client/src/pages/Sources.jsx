@@ -13,6 +13,13 @@ export default function Sources() {
   const [checkedIds, setCheckedIds]     = useState(new Set());
   const [countdown, setCountdown]       = useState('');
   const [postingInterval, setPostingInterval] = useState(null);
+  const [fetchingId, setFetchingId]     = useState(null);
+  const [toast, setToast]               = useState('');
+
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(''), 4000);
+  };
 
   // ── Load sources ────────────────────────────────────────────────────────────
   const loadSources = useCallback(async () => {
@@ -172,18 +179,37 @@ export default function Sources() {
 
   // ── Fetch posts for a source ─────────────────────────────────────────────────
   const handleFetch = async (id) => {
-    await api.post(`/sources/${id}/fetch`).catch(() => {});
-    await loadSources();
-    if (selected?.id === id) {
-      const { data } = await api.get(`/sources/${id}/posts`);
-      setPosts(data);
+    setFetchingId(id);
+    try {
+      const { data } = await api.post(`/sources/${id}/fetch`);
+      showToast(`Found ${data.added} new post(s)`);
+      const [{ data: freshSources }, { data: fetchedPosts }] = await Promise.all([
+        api.get('/sources'),
+        api.get(`/sources/${id}/posts`),
+      ]);
+      setSources(freshSources);
+      const src = freshSources.find((s) => s.id === id);
+      if (src) setSelected(src);
+      setPosts(fetchedPosts);
+    } catch (e) {
+      showToast(`Fetch error: ${e?.response?.data?.error || e.message || 'Unknown error'}`);
+    } finally {
+      setFetchingId(null);
     }
   };
 
   if (loading) return <Spinner />;
 
   return (
-    <div className="flex h-full min-h-0">
+    <div className="flex h-full min-h-0 flex-col gap-2">
+      {/* Toast */}
+      {toast && (
+        <div className="bg-[#1e3a5f] border border-[#2563eb55] text-[#93c5fd] rounded-lg px-4 py-2 text-sm">
+          {toast}
+        </div>
+      )}
+
+      <div className="flex h-full min-h-0">
       {/* ── Left: table ──────────────────────────────────────────────────── */}
       <div className="flex-1 min-w-0 flex flex-col gap-3 mr-0">
         {/* Top toolbar */}
@@ -293,9 +319,10 @@ export default function Sources() {
                   >
                     <button
                       onClick={() => handleFetch(src.id)}
-                      className="text-blue-400 hover:text-blue-300 text-xs transition-colors"
+                      disabled={fetchingId === src.id}
+                      className="text-blue-400 hover:text-blue-300 text-xs transition-colors disabled:opacity-50"
                     >
-                      Fetch
+                      {fetchingId === src.id ? '...' : 'Fetch'}
                     </button>
                     <button
                       onClick={() => handleClear(src.id)}
@@ -376,6 +403,7 @@ export default function Sources() {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }
