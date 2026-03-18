@@ -1,10 +1,14 @@
 const { fetchAllSources } = require('../server/scraper');
 
 module.exports = async (req, res) => {
-  // Allow Vercel cron (no auth header) or secret key
+  // Allow Vercel cron (Authorization: Bearer <CRON_SECRET>) or x-cron-secret header
   const secret = process.env.CRON_SECRET;
-  if (secret && req.headers['x-cron-secret'] !== secret) {
-    return res.status(401).json({ error: 'Unauthorized' });
+  if (secret) {
+    const authHeader = req.headers['authorization'];
+    const legacyHeader = req.headers['x-cron-secret'];
+    if (authHeader !== `Bearer ${secret}` && legacyHeader !== secret) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
   }
 
   try {

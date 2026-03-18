@@ -52,7 +52,8 @@ async function scrapeTelegram(channelUrl) {
     if (!text && mediaUrls.length === 0) return;
 
     const content = text || '[media]';
-    const contentHash = crypto.createHash('sha256').update(content).digest('hex');
+    const hashSource = content !== '[media]' ? content : `[media]:${id}`;
+    const contentHash = crypto.createHash('sha256').update(hashSource).digest('hex');
     posts.push({ externalId: id, content, mediaUrls, contentHash });
   });
 
@@ -71,12 +72,12 @@ async function fetchSource(source) {
   const adFilterEnabled = cfg['ad_filter_enabled'] !== 'false';
   const adKeywords = (cfg['ad_keywords'] || '').split(/[\n,]/).map(s => s.trim()).filter(Boolean);
 
-  let added = 0;
+  const newPosts = [];
   for (const post of posts) {
     if (adFilterEnabled && adKeywords.some(kw => post.content.toLowerCase().includes(kw.toLowerCase()))) continue;
 
     try {
-      await prisma.post.create({
+      const created = await prisma.post.create({
         data: {
           sourceId: source.id,
           externalId: post.externalId,
@@ -87,7 +88,7 @@ async function fetchSource(source) {
           ignored: false,
         },
       });
-      added++;
+      newPosts.push(created);
     } catch (e) {
       if (e.code !== 'P2002') console.error('Insert error:', e.message);
     }
@@ -98,7 +99,7 @@ async function fetchSource(source) {
     data: { lastScrapedAt: new Date() },
   });
 
-  return added;
+  return newPosts;
 }
 
 async function fetchAllSources() {
@@ -106,8 +107,8 @@ async function fetchAllSources() {
   const results = [];
   for (const source of sources) {
     try {
-      const added = await fetchSource(source);
-      results.push({ id: source.id, name: source.name, added });
+      const newPosts = await fetchSource(source);
+      results.push({ id: source.id, name: source.name, added: newPosts.length });
     } catch (err) {
       console.error(`Error scraping ${source.name}:`, err.message);
       results.push({ id: source.id, name: source.name, error: err.message });

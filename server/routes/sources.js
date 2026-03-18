@@ -192,8 +192,8 @@ router.post('/:id/fetch', async (req, res) => {
   try {
     const source = await prisma.source.findUnique({ where: { id: req.params.id } });
     if (!source) return res.status(404).json({ error: 'Source not found' });
-    const added = await fetchSource(source);
-    res.json({ ok: true, added });
+    const newPosts = await fetchSource(source);
+    res.json({ ok: true, added: newPosts.length, posts: newPosts });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
