@@ -14,6 +14,7 @@ export default function Sources() {
   const [countdown, setCountdown]       = useState('');
   const [postingInterval, setPostingInterval] = useState(null);
   const [fetchingId, setFetchingId]     = useState(null);
+  const [fetchingAll, setFetchingAll]   = useState(false);
   const [toast, setToast]               = useState('');
 
   const showToast = (msg) => {
@@ -36,7 +37,21 @@ export default function Sources() {
         const sec = parseInt(data.posting_interval);
         if (!isNaN(sec) && sec > 0) setPostingInterval(sec);
       }).catch(() => {}),
-    ]).finally(() => setLoading(false));
+    ]).then(async () => {
+      setLoading(false);
+      // auto fetch all on page load
+      const { data: srcs } = await api.get('/sources');
+      if (srcs.length === 0) return;
+      setFetchingAll(true);
+      try {
+        const results = await Promise.allSettled(srcs.map((s) => api.post(`/sources/${s.id}/fetch`)));
+        const totalAdded = results.reduce((sum, r) => sum + (r.status === 'fulfilled' ? (r.value.data.added || 0) : 0), 0);
+        if (totalAdded > 0) showToast(`Auto-fetch: found ${totalAdded} new post(s)`);
+        const { data: fresh } = await api.get('/sources');
+        setSources(fresh);
+      } catch {}
+      setFetchingAll(false);
+    });
   }, [loadSources]);
 
   // ── Countdown based on posting interval ─────────────────────────────────────
@@ -177,6 +192,26 @@ export default function Sources() {
     };
   }, []);
 
+  // ── Fetch all sources ────────────────────────────────────────────────────────
+  const handleFetchAll = async () => {
+    if (fetchingAll || sources.length === 0) return;
+    setFetchingAll(true);
+    try {
+      const results = await Promise.allSettled(sources.map((s) => api.post(`/sources/${s.id}/fetch`)));
+      const totalAdded = results.reduce((sum, r) => sum + (r.status === 'fulfilled' ? (r.value.data.added || 0) : 0), 0);
+      showToast(`Fetched all: found ${totalAdded} new post(s)`);
+      const { data: fresh } = await api.get('/sources');
+      setSources(fresh);
+      if (selected) {
+        const { data: fetchedPosts } = await api.get(`/sources/${selected.id}/posts`);
+        setPosts(fetchedPosts);
+      }
+    } catch (e) {
+      showToast('Fetch all error');
+    }
+    setFetchingAll(false);
+  };
+
   // ── Fetch posts for a source ─────────────────────────────────────────────────
   const handleFetch = async (id) => {
     setFetchingId(id);
@@ -218,6 +253,9 @@ export default function Sources() {
             <span className="text-gray-500 text-xs">Next send in {countdown}</span>
           )}
           <div className="flex-1" />
+          <button onClick={handleFetchAll} disabled={fetchingAll} className="btn-ghost text-xs px-3 py-1.5 disabled:opacity-50">
+            {fetchingAll ? 'Fetching...' : 'Fetch All'}
+          </button>
           <button onClick={handleSendAll}  className="btn-primary  text-xs px-3 py-1.5">Send All</button>
           <button onClick={handleClearAll} className="btn-ghost    text-xs px-3 py-1.5">Clear All</button>
           {checkedIds.size > 0 && (
