@@ -202,11 +202,37 @@ router.post('/:id/fetch', async (req, res) => {
 
 router.get('/:id/posts', async (req, res) => {
   try {
-    const posts = await prisma.post.findMany({
-      where: { sourceId: req.params.id, isSent: false, ignored: false },
-      orderBy: { scrapedAt: 'desc' },
-    });
-    res.json(posts);
+    const [posts, settings] = await Promise.all([
+      prisma.post.findMany({
+        where: { sourceId: req.params.id, isSent: false, ignored: false },
+        orderBy: { scrapedAt: 'desc' },
+      }),
+      prisma.botSettings.findMany(),
+    ]);
+
+    const cfg = Object.fromEntries(settings.map((r) => [r.key, r.value]));
+    const adFilterEnabled = cfg['ad_filter_enabled'] !== 'false';
+    const adKeywords = (cfg['ad_keywords'] || '')
+      .split(/[\n,]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (adFilterEnabled && adKeywords.length > 0) {
+      const toIgnore = posts
+        .filter((p) => adKeywords.some((kw) => p.content.toLowerCase().includes(kw.toLowerCase())))
+        .map((p) => p.id);
+
+      if (toIgnore.length > 0) {
+        await prisma.post.updateMany({
+          where: { id: { in: toIgnore } },
+          data: { ignored: true },
+        });
+      }
+
+      res.json(posts.filter((p) => !toIgnore.includes(p.id)));
+    } else {
+      res.json(posts);
+    }
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
