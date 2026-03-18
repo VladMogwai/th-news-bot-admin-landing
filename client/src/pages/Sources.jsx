@@ -209,7 +209,7 @@ export default function Sources() {
         </div>
       )}
 
-      <div className="flex h-full min-h-0">
+      <div className="flex flex-1 min-h-0">
       {/* ── Left: table ──────────────────────────────────────────────────── */}
       <div className="flex-1 min-w-0 flex flex-col gap-3 mr-0">
         {/* Top toolbar */}
