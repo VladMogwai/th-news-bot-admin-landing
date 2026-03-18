@@ -2,6 +2,7 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const crypto = require('crypto');
 const { PrismaClient } = require('@prisma/client');
+const { getClient } = require('./telegramClient');
 
 const prisma = new PrismaClient();
 
@@ -60,11 +61,34 @@ async function scrapeTelegram(channelUrl) {
   return posts;
 }
 
+async function scrapePrivateTelegram(channelId) {
+  const client = await getClient();
+  if (!client) throw new Error('Telegram user client not connected. Set up auth in Settings.');
+
+  const entity = await client.getEntity(channelId);
+  const messages = await client.getMessages(entity, { limit: 30 });
+
+  const posts = [];
+  for (const msg of messages) {
+    if (!msg.message && !msg.media) continue;
+
+    const content = msg.message || '[media]';
+    const externalId = String(msg.id);
+    const hashSource = content !== '[media]' ? content : `[media]:${externalId}`;
+    const contentHash = crypto.createHash('sha256').update(hashSource).digest('hex');
+    posts.push({ externalId, content, mediaUrls: [], contentHash });
+  }
+
+  return posts;
+}
+
 async function fetchSource(source) {
   let posts = [];
 
   if (source.type === 'telegram') {
     posts = await scrapeTelegram(source.url);
+  } else if (source.type === 'telegram_private') {
+    posts = await scrapePrivateTelegram(source.url);
   }
 
   const settings = await prisma.botSettings.findMany();

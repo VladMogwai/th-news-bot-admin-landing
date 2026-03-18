@@ -288,6 +288,7 @@ export default function Sources() {
             style={{ width: '120px' }}
           >
             <option value="telegram">Telegram</option>
+            <option value="telegram_private">Telegram Private</option>
             <option value="website">Website</option>
           </select>
           <button type="submit" disabled={adding} className="btn-primary px-4 py-2 text-sm whitespace-nowrap">

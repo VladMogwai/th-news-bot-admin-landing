@@ -10,6 +10,8 @@ const DEFAULTS = {
   dedup_window_days:  '7',
   ad_filter_enabled:  'false',
   ad_keywords:        '',
+  tg_api_id:          '',
+  tg_api_hash:        '',
 };
 
 export default function Settings() {
@@ -18,11 +20,18 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState(''); // '' | 'saved' | 'error'
 
+  // Telegram auth state
+  const [tgConnected, setTgConnected]   = useState(false);
+  const [tgPhone, setTgPhone]           = useState('');
+  const [tgCode, setTgCode]             = useState('');
+  const [tgStep, setTgStep]             = useState('idle'); // 'idle' | 'code' | 'loading'
+  const [tgError, setTgError]           = useState('');
+
   useEffect(() => {
-    api.get('/settings')
-      .then(({ data }) => setForm((p) => ({ ...p, ...data })))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    Promise.all([
+      api.get('/settings').then(({ data }) => setForm((p) => ({ ...p, ...data }))),
+      api.get('/telegram/status').then(({ data }) => setTgConnected(data.connected)).catch(() => {}),
+    ]).finally(() => setLoading(false));
   }, []);
 
   const set = (key) => (e) =>
@@ -43,6 +52,39 @@ export default function Settings() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleTgSendCode = async () => {
+    setTgError('');
+    setTgStep('loading');
+    try {
+      await api.post('/telegram/auth/start', { phone: tgPhone });
+      setTgStep('code');
+    } catch (e) {
+      setTgError(e?.response?.data?.error || 'Error sending code');
+      setTgStep('idle');
+    }
+  };
+
+  const handleTgConfirm = async () => {
+    setTgError('');
+    setTgStep('loading');
+    try {
+      await api.post('/telegram/auth/confirm', { phone: tgPhone, code: tgCode });
+      setTgConnected(true);
+      setTgStep('idle');
+      setTgPhone('');
+      setTgCode('');
+    } catch (e) {
+      setTgError(e?.response?.data?.error || 'Wrong code');
+      setTgStep('code');
+    }
+  };
+
+  const handleTgLogout = async () => {
+    await api.post('/telegram/auth/logout').catch(() => {});
+    setTgConnected(false);
+    setTgStep('idle');
   };
 
   if (loading) return <Spinner />;
@@ -132,6 +174,80 @@ export default function Settings() {
             className="input resize-none"
           />
         </Field>
+      </Section>
+
+      {/* Telegram Account */}
+      <Section title="Telegram Account (Private Channels)">
+        <Field label="API ID">
+          <input
+            type="text"
+            value={form.tg_api_id}
+            onChange={set('tg_api_id')}
+            placeholder="From my.telegram.org"
+            className="input"
+          />
+        </Field>
+        <Field label="API Hash">
+          <input
+            type="password"
+            value={form.tg_api_hash}
+            onChange={set('tg_api_hash')}
+            placeholder="From my.telegram.org"
+            className="input"
+          />
+        </Field>
+        <div className="pt-2 border-t border-gray-800">
+          <div className="flex items-center gap-2 mb-3">
+            <span className={`text-xs px-2 py-0.5 rounded ${tgConnected ? 'bg-green-900/50 text-green-400' : 'bg-gray-800 text-gray-400'}`}>
+              {tgConnected ? 'Connected' : 'Not connected'}
+            </span>
+            {tgConnected && (
+              <button onClick={handleTgLogout} className="text-red-500 hover:text-red-400 text-xs">
+                Disconnect
+              </button>
+            )}
+          </div>
+          {!tgConnected && (
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={tgPhone}
+                  onChange={(e) => setTgPhone(e.target.value)}
+                  placeholder="+79001234567"
+                  className="input flex-1"
+                  disabled={tgStep === 'code' || tgStep === 'loading'}
+                />
+                <button
+                  onClick={handleTgSendCode}
+                  disabled={!tgPhone || tgStep === 'code' || tgStep === 'loading'}
+                  className="btn-primary text-sm px-4 disabled:opacity-50"
+                >
+                  {tgStep === 'loading' && tgStep !== 'code' ? '...' : 'Send Code'}
+                </button>
+              </div>
+              {tgStep === 'code' && (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={tgCode}
+                    onChange={(e) => setTgCode(e.target.value)}
+                    placeholder="Code from Telegram"
+                    className="input flex-1"
+                  />
+                  <button
+                    onClick={handleTgConfirm}
+                    disabled={!tgCode || tgStep === 'loading'}
+                    className="btn-primary text-sm px-4 disabled:opacity-50"
+                  >
+                    {tgStep === 'loading' ? '...' : 'Confirm'}
+                  </button>
+                </div>
+              )}
+              {tgError && <p className="text-red-400 text-xs">{tgError}</p>}
+            </div>
+          )}
+        </div>
       </Section>
 
       {/* Save */}
