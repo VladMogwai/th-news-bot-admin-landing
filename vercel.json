@@ -7,8 +7,5 @@
     { "source": "/api/parser/status/:jobId", "destination": "/api/parser/status" },
     { "source": "/api/parser/web", "destination": "/api/parser/web" },
     { "source": "/api/:path*", "destination": "/api/index" }
-  ],
-  "crons": [
-    { "path": "/api/cron", "schedule": "*/20 * * * *" }
   ]
 }

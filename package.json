@@ -5,6 +5,9 @@
   "prisma": {
     "schema": "server/prisma/schema.prisma"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "prisma generate && npm install --prefix client && npm run build --prefix client",
     "start": "node server/index.js",
