@@ -404,11 +404,11 @@ export default function Sources() {
       {/* ── Right: pending posts panel ───────────────────────────────────── */}
       {selected && (
         <div
-          style={{ width: panelWidth, minWidth: 280 }}
-          className="flex-shrink-0 bg-[#161b22] border border-gray-800 rounded-lg flex flex-col">
-          <div className="p-4 border-b border-gray-800">
+          style={{ width: panelWidth, minWidth: 280, backgroundImage: 'url(/chat-bg.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}
+          className="flex-shrink-0 border border-gray-800 rounded-lg flex flex-col">
+          <div className="p-4 border-b border-gray-800 bg-black/50 backdrop-blur-sm rounded-tl-lg rounded-tr-lg">
             <h3 className="text-white font-semibold truncate">{selected.name}</h3>
-            <p className="text-gray-500 text-xs mt-0.5">{posts.length} pending</p>
+            <p className="text-gray-400 text-xs mt-0.5">{posts.length} pending</p>
           </div>
 
           <div className="flex-1 overflow-auto p-2 space-y-2">
@@ -426,7 +426,7 @@ export default function Sources() {
             )}
           </div>
 
-          <div className="p-3 border-t border-gray-800 space-y-2">
+          <div className="p-3 border-t border-gray-800 space-y-2 bg-black/50 backdrop-blur-sm rounded-bl-lg rounded-br-lg">
             <button
               onClick={handleSendAllPosts}
               disabled={posts.length === 0}
