@@ -178,10 +178,10 @@ export default function Settings() {
         </Field>
       </Section>
 
-      {/* Grok Ad Filter */}
-      <Section title="Grok AI Ad Filter">
+      {/* Groq Ad Filter */}
+      <Section title="Groq AI Ad Filter">
         <div className="flex items-center justify-between mb-4">
-          <span className="text-gray-400 text-sm">Enable Grok Filter</span>
+          <span className="text-gray-400 text-sm">Enable Groq Filter</span>
           <button
             type="button"
             onClick={() =>
@@ -201,17 +201,17 @@ export default function Settings() {
             />
           </button>
         </div>
-        <Field label="Grok API Key">
+        <Field label="Groq API Key">
           <input
             type="password"
             value={form.grok_api_key}
             onChange={set('grok_api_key')}
-            placeholder="xai-..."
+            placeholder="gsk_..."
             className="input"
           />
         </Field>
         <p className="text-gray-600 text-xs mt-1">
-          Получить ключ: console.x.ai → API Keys
+          Получить ключ: console.groq.com → API Keys (бесплатно)
         </p>
       </Section>
 

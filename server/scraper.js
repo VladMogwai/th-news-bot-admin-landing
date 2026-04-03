@@ -86,9 +86,9 @@ async function isAdByGrok(content, apiKey) {
   if (!content || content === '[media]') return false;
   try {
     const { data } = await axios.post(
-      'https://api.x.ai/v1/chat/completions',
+      'https://api.groq.com/openai/v1/chat/completions',
       {
-        model: 'grok-3-mini',
+        model: 'llama-3.1-8b-instant',
         messages: [
           {
             role: 'user',
@@ -124,7 +124,7 @@ async function fetchSource(source) {
   const adFilterEnabled = cfg['ad_filter_enabled'] !== 'false';
   const adKeywords = (cfg['ad_keywords'] || '').split(/[\n,]/).map(s => s.trim()).filter(Boolean);
   const grokFilterEnabled = cfg['grok_filter_enabled'] === 'true';
-  const grokApiKey = cfg['grok_api_key'] || '';
+  const grokApiKey = process.env.GROQ_API_KEY || cfg['grok_api_key'] || '';
 
   const newPosts = [];
   for (const post of posts) {
