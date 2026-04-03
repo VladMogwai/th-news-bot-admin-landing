@@ -82,12 +82,40 @@ async function scrapePrivateTelegram(channelId) {
   return posts;
 }
 
+async function isAdByGrok(content, apiKey) {
+  if (!content || content === '[media]') return false;
+  try {
+    const { data } = await axios.post(
+      'https://api.x.ai/v1/chat/completions',
+      {
+        model: 'grok-3-mini',
+        messages: [
+          {
+            role: 'user',
+            content: `Is the following Telegram post an advertisement, sponsored content, or promotion? Reply with only "yes" or "no".\n\n${content.slice(0, 1000)}`,
+          },
+        ],
+        max_tokens: 5,
+      },
+      {
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        timeout: 15000,
+      }
+    );
+    const answer = data.choices?.[0]?.message?.content?.trim().toLowerCase() || '';
+    return answer.startsWith('yes');
+  } catch (e) {
+    console.error('Grok ad filter error:', e.message);
+    return false;
+  }
+}
+
 async function fetchSource(source) {
   let posts = [];
 
   if (source.type === 'telegram') {
     posts = await scrapeTelegram(source.url);
-  } else if (source.type === 'telegram_private') {
+  } else if (source.type === 'telegram_private' || source.type === 'telegram_mtproto') {
     posts = await scrapePrivateTelegram(source.url);
   }
 
@@ -95,10 +123,13 @@ async function fetchSource(source) {
   const cfg = Object.fromEntries(settings.map(r => [r.key, r.value]));
   const adFilterEnabled = cfg['ad_filter_enabled'] !== 'false';
   const adKeywords = (cfg['ad_keywords'] || '').split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+  const grokFilterEnabled = cfg['grok_filter_enabled'] === 'true';
+  const grokApiKey = cfg['grok_api_key'] || '';
 
   const newPosts = [];
   for (const post of posts) {
     if (adFilterEnabled && adKeywords.some(kw => post.content.toLowerCase().includes(kw.toLowerCase()))) continue;
+    if (grokFilterEnabled && grokApiKey && await isAdByGrok(post.content, grokApiKey)) continue;
 
     try {
       const created = await prisma.post.create({

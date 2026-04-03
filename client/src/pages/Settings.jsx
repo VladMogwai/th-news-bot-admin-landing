@@ -3,15 +3,17 @@ import api from '../api/axios';
 import Spinner from '../components/Spinner';
 
 const DEFAULTS = {
-  bot_token:          '',
-  target_channel_id:  '',
-  posting_interval:   '300',
-  max_posts_per_hour: '10',
-  dedup_window_days:  '7',
-  ad_filter_enabled:  'false',
-  ad_keywords:        '',
-  tg_api_id:          '',
-  tg_api_hash:        '',
+  bot_token:           '',
+  target_channel_id:   '',
+  posting_interval:    '300',
+  max_posts_per_hour:  '10',
+  dedup_window_days:   '7',
+  ad_filter_enabled:   'false',
+  ad_keywords:         '',
+  grok_filter_enabled: 'false',
+  grok_api_key:        '',
+  tg_api_id:           '',
+  tg_api_hash:         '',
 };
 
 export default function Settings() {
@@ -174,6 +176,43 @@ export default function Settings() {
             className="input resize-none"
           />
         </Field>
+      </Section>
+
+      {/* Grok Ad Filter */}
+      <Section title="Grok AI Ad Filter">
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-gray-400 text-sm">Enable Grok Filter</span>
+          <button
+            type="button"
+            onClick={() =>
+              setForm((p) => ({
+                ...p,
+                grok_filter_enabled: String(p.grok_filter_enabled !== 'true'),
+              }))
+            }
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              form.grok_filter_enabled === 'true' ? 'bg-[#2563eb]' : 'bg-gray-700'
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                form.grok_filter_enabled === 'true' ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+        <Field label="Grok API Key">
+          <input
+            type="password"
+            value={form.grok_api_key}
+            onChange={set('grok_api_key')}
+            placeholder="xai-..."
+            className="input"
+          />
+        </Field>
+        <p className="text-gray-600 text-xs mt-1">
+          Получить ключ: console.x.ai → API Keys
+        </p>
       </Section>
 
       {/* Telegram Account */}

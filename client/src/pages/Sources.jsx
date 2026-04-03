@@ -288,6 +288,7 @@ export default function Sources() {
             style={{ width: '120px' }}
           >
             <option value="telegram">Telegram</option>
+            <option value="telegram_mtproto">Telegram MTProto</option>
             <option value="telegram_private">Telegram Private</option>
             <option value="website">Website</option>
           </select>
