@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import api from '../api/axios';
 import Spinner from '../components/Spinner';
+import Overlay from '../components/Overlay';
 
 export default function Sources() {
   const [sources, setSources]           = useState([]);
@@ -16,6 +17,14 @@ export default function Sources() {
   const [fetchingId, setFetchingId]     = useState(null);
   const [fetchingAll, setFetchingAll]   = useState(false);
   const [toast, setToast]               = useState('');
+  const [busy, setBusy]                 = useState(false);
+  const [busyLabel, setBusyLabel]       = useState('');
+
+  const withBusy = async (label, fn) => {
+    setBusyLabel(label);
+    setBusy(true);
+    try { await fn(); } finally { setBusy(false); setBusyLabel(''); }
+  };
 
   const showToast = (msg) => {
     setToast(msg);
@@ -84,19 +93,23 @@ export default function Sources() {
     e.preventDefault();
     if (!newSrc.name || !newSrc.url) return;
     setAdding(true);
-    try {
-      await api.post('/sources', newSrc);
-      setNewSrc({ name: '', url: '', type: 'telegram' });
-      await loadSources();
-    } catch {}
+    await withBusy('Adding source…', async () => {
+      try {
+        await api.post('/sources', newSrc);
+        setNewSrc({ name: '', url: '', type: 'telegram' });
+        await loadSources();
+      } catch {}
+    });
     setAdding(false);
   };
 
   const handleDelete = async (id) => {
     if (!confirm('Delete this source and all its data?')) return;
-    await api.delete(`/sources/${id}`).catch(() => {});
-    if (selected?.id === id) setSelected(null);
-    await loadSources();
+    await withBusy('Deleting source…', async () => {
+      await api.delete(`/sources/${id}`).catch(() => {});
+      if (selected?.id === id) setSelected(null);
+      await loadSources();
+    });
   };
 
   const handleClear = async (id) => {
@@ -111,46 +124,59 @@ export default function Sources() {
   const handleBulkAction = async (action) => {
     if (!checkedIds.size) return;
     if (action === 'delete' && !confirm(`Delete ${checkedIds.size} source(s)?`)) return;
-    await api.post('/sources/bulk', { action, sourceIds: [...checkedIds] }).catch(() => {});
-    if (action === 'delete' && checkedIds.has(selected?.id)) setSelected(null);
-    setCheckedIds(new Set());
-    await loadSources();
+    const labels = { delete: 'Deleting sources…', clear: 'Clearing posts…', send: 'Sending posts…' };
+    await withBusy(labels[action] || 'Working…', async () => {
+      await api.post('/sources/bulk', { action, sourceIds: [...checkedIds] }).catch(() => {});
+      if (action === 'delete' && checkedIds.has(selected?.id)) setSelected(null);
+      setCheckedIds(new Set());
+      await loadSources();
+    });
   };
 
   const handleSendAll = async () => {
-    await api.post('/sources/bulk', { action: 'send', sourceIds: sources.map((s) => s.id) });
-    await loadSources();
-    if (selected) {
-      const { data } = await api.get(`/sources/${selected.id}/posts`);
-      setPosts(data);
-    }
+    await withBusy('Sending all posts…', async () => {
+      await api.post('/sources/bulk', { action: 'send', sourceIds: sources.map((s) => s.id) });
+      await loadSources();
+      if (selected) {
+        const { data } = await api.get(`/sources/${selected.id}/posts`);
+        setPosts(data);
+      }
+    });
   };
 
   const handleClearAll = async () => {
     if (!confirm('Clear all pending posts from all sources?')) return;
-    await api.post('/sources/bulk', { action: 'clear', sourceIds: sources.map((s) => s.id) });
-    await loadSources();
-    if (selected) setPosts([]);
+    await withBusy('Clearing all posts…', async () => {
+      await api.post('/sources/bulk', { action: 'clear', sourceIds: sources.map((s) => s.id) });
+      await loadSources();
+      if (selected) setPosts([]);
+    });
   };
 
   const handleSendPost = async (postId) => {
-    await api.post(`/sources/${selected.id}/posts/${postId}/send`).catch(() => {});
-    setPosts((p) => p.filter((x) => x.id !== postId));
-    loadSources();
+    await withBusy('Sending…', async () => {
+      await api.post(`/sources/${selected.id}/posts/${postId}/send`).catch(() => {});
+      setPosts((p) => p.filter((x) => x.id !== postId));
+      loadSources();
+    });
   };
 
   const handleDeletePost = async (postId) => {
-    await api.delete(`/sources/${selected.id}/posts/${postId}`).catch(() => {});
-    setPosts((p) => p.filter((x) => x.id !== postId));
-    loadSources();
+    await withBusy('Deleting…', async () => {
+      await api.delete(`/sources/${selected.id}/posts/${postId}`).catch(() => {});
+      setPosts((p) => p.filter((x) => x.id !== postId));
+      loadSources();
+    });
   };
 
   const handleSendAllPosts = async () => {
-    for (const p of posts) {
-      await api.post(`/sources/${selected.id}/posts/${p.id}/send`).catch(() => {});
-    }
-    setPosts([]);
-    loadSources();
+    await withBusy('Sending all…', async () => {
+      for (const p of posts) {
+        await api.post(`/sources/${selected.id}/posts/${p.id}/send`).catch(() => {});
+      }
+      setPosts([]);
+      loadSources();
+    });
   };
 
   const toggleCheck = (id) => {
@@ -196,46 +222,51 @@ export default function Sources() {
   const handleFetchAll = async () => {
     if (fetchingAll || sources.length === 0) return;
     setFetchingAll(true);
-    try {
-      const results = await Promise.allSettled(sources.map((s) => api.post(`/sources/${s.id}/fetch`)));
-      const totalAdded = results.reduce((sum, r) => sum + (r.status === 'fulfilled' ? (r.value.data.added || 0) : 0), 0);
-      showToast(`Fetched all: found ${totalAdded} new post(s)`);
-      const { data: fresh } = await api.get('/sources');
-      setSources(fresh);
-      if (selected) {
-        const { data: fetchedPosts } = await api.get(`/sources/${selected.id}/posts`);
-        setPosts(fetchedPosts);
+    await withBusy('Fetching all sources…', async () => {
+      try {
+        const results = await Promise.allSettled(sources.map((s) => api.post(`/sources/${s.id}/fetch`)));
+        const totalAdded = results.reduce((sum, r) => sum + (r.status === 'fulfilled' ? (r.value.data.added || 0) : 0), 0);
+        showToast(`Fetched all: found ${totalAdded} new post(s)`);
+        const { data: fresh } = await api.get('/sources');
+        setSources(fresh);
+        if (selected) {
+          const { data: fetchedPosts } = await api.get(`/sources/${selected.id}/posts`);
+          setPosts(fetchedPosts);
+        }
+      } catch (e) {
+        showToast('Fetch all error');
       }
-    } catch (e) {
-      showToast('Fetch all error');
-    }
+    });
     setFetchingAll(false);
   };
 
   // ── Fetch posts for a source ─────────────────────────────────────────────────
   const handleFetch = async (id) => {
     setFetchingId(id);
-    try {
-      const { data } = await api.post(`/sources/${id}/fetch`);
-      showToast(`Found ${data.added} new post(s)`);
-      const [{ data: freshSources }, { data: fetchedPosts }] = await Promise.all([
-        api.get('/sources'),
-        api.get(`/sources/${id}/posts`),
-      ]);
-      setSources(freshSources);
-      const src = freshSources.find((s) => s.id === id);
-      if (src) setSelected(src);
-      setPosts(fetchedPosts);
-    } catch (e) {
-      showToast(`Fetch error: ${e?.response?.data?.error || e.message || 'Unknown error'}`);
-    } finally {
-      setFetchingId(null);
-    }
+    await withBusy('Fetching posts…', async () => {
+      try {
+        const { data } = await api.post(`/sources/${id}/fetch`);
+        showToast(`Found ${data.added} new post(s)`);
+        const [{ data: freshSources }, { data: fetchedPosts }] = await Promise.all([
+          api.get('/sources'),
+          api.get(`/sources/${id}/posts`),
+        ]);
+        setSources(freshSources);
+        const src = freshSources.find((s) => s.id === id);
+        if (src) setSelected(src);
+        setPosts(fetchedPosts);
+      } catch (e) {
+        showToast(`Fetch error: ${e?.response?.data?.error || e.message || 'Unknown error'}`);
+      }
+    });
+    setFetchingId(null);
   };
 
   if (loading) return <Spinner />;
 
   return (
+    <>
+    <Overlay isOpen={busy}>{busyLabel}</Overlay>
     <div className="flex h-full min-h-0 flex-col gap-2">
       {/* Toast */}
       {toast && (
@@ -445,6 +476,7 @@ export default function Sources() {
       )}
     </div>
     </div>
+    </>
   );
 }
 
