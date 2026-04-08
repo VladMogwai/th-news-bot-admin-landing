@@ -8,7 +8,8 @@ const authRoutes = require('./routes/auth');
 const statsRoutes = require('./routes/stats');
 const sourcesRoutes = require('./routes/sources');
 const settingsRoutes = require('./routes/settings');
-const telegramRoutes = require('./routes/telegram');
+const telegramRoutes   = require('./routes/telegram');
+const authorityRoutes  = require('./routes/authority');
 const { authenticate } = require('./middleware/auth');
 
 const app = express();
@@ -31,7 +32,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/stats', authenticate, statsRoutes);
 app.use('/api/sources', authenticate, sourcesRoutes);
 app.use('/api/settings', authenticate, settingsRoutes);
-app.use('/api/telegram', authenticate, telegramRoutes);
+app.use('/api/telegram',  authenticate, telegramRoutes);
+app.use('/api/authority', authenticate, authorityRoutes);
 
 // Serve React build in production (non-Vercel)
 if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {

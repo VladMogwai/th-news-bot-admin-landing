@@ -2,9 +2,10 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const NAV = [
-  { to: '/dashboard', label: 'Dashboard' },
-  { to: '/sources',   label: 'Sources'   },
-  { to: '/settings',  label: 'Settings'  },
+  { to: '/dashboard',  label: 'Dashboard'  },
+  { to: '/sources',    label: 'Sources'    },
+  { to: '/authority',  label: 'Authority'  },
+  { to: '/settings',   label: 'Settings'   },
 ];
 
 export default function Sidebar() {
